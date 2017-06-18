@@ -1,0 +1,23 @@
+---
+name: deployment
+pack: asti
+runner_type: mistral-v2
+description: Deploy a virtualized network function!
+enabled: true
+entry_point: workflows/deployment.yaml
+parameters:
+    vnf:
+        type: string
+        description: Name of the virtualized network function to be deployed
+        required: true
+        position: 1
+    version:
+        type: string
+        description: Version of the virtualized network function to be deployed
+        required: true
+        position: 1
+    timeout:
+      type: integer
+      default: 60
+      required: true
+      position: 2

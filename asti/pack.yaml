@@ -1,0 +1,10 @@
+---
+ref: asti
+name: Asynchronous State Transition Iterator
+description: A pack for the asynchronous state transition iterator
+keywords:
+    - asti
+    - lifecycle management
+version: 0.1.0
+author: Bernard Tsai
+email: bernard@tsai.eu

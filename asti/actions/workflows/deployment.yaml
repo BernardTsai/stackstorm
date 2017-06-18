@@ -1,0 +1,120 @@
+version: '2.0'
+
+asti.deployment:
+  description: A basic workflow that deploys a VNF into a single tenant.
+  type: direct
+  input:
+    - vnf
+    - version
+    - timeout
+  output:
+    status: <$ $.status %>
+    errors: <% $.errors %>
+  tasks:
+    #---------------------------------------------------------------------------
+    reset:
+      description: Reset the status of the workflow to default values.
+      action: std.noop
+      publish:
+        status: undefined <% task(task1).result.stdout %>
+        stderr: <% task(task1).result.stderr %>
+      on-success:
+        - get_configuration
+
+    #---------------------------------------------------------------------------
+    get_configuration:
+      description: Retrieve the configuration for the VNF.
+      action: core.local
+      input:
+        cmd: |
+          /usr/local/bin/get_configuration.sh <% $.vnf %> <% $.version %>
+      publish:
+        config: undefined <% task(task1).result.stdout %>
+      on-error:
+        - configuration_not_found
+      on-success:
+        - check_vnf_status
+
+    #---------------------------------------------------------------------------
+    check_vnf_status:
+      description: Check the status of the virtualized network function.
+      action: std.ssh
+      input:
+        host:                 <% $.vnf %>-manager
+        username:             <% $.vnf %>
+        private_key_filename: <% $.vnf %>/id.rsa
+        cmd: |
+          /usr/local/bin/vnf_status.sh
+      publish:
+        status: <% task(check_vnf_status).result.stdout %>
+      on-error:
+        - no_vnf_manager
+      on-success:
+        - create_clusters: <% $.status = 'initial'  %>
+        - start_clusters:  <% $.status = 'inactive' %>
+        - update_clusters: <% $.status = 'active'   %>
+
+    #---------------------------------------------------------------------------
+    create_clusters:
+      description: Create the VNF clusters within a tenant.
+      action: std.ssh
+      input:
+        host:                 <% $.vnf %>-manager
+        username:             <% $.vnf %>
+        private_key_filename: <% $.vnf %>/id.rsa
+        cmd: |
+          /usr/local/bin/create_cluster <% $.cluster.name %>
+      with-items: cluster in <% $.vnf.clusters %>
+      publish:
+        status: <% task(check_vnf_status).result.stdout %>
+      on-error:
+        - no_vnf_manager
+      on-success:
+        - create_clusters: <% $.status = 'initial'  %>
+
+    #---------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    #---------------------------------------------------------------------------
+    configuration_not_found:
+      description: Unable to find VNF configuration.
+      action: std.echo
+      output: |
+       Unable to find the configuration of the VNF <% $.vnf %> (<% $.version %>)
+       Please check\:
+         name of the VNF and
+         version of the VNF.
+      publish:
+          status: undefined
+          errors: Unable to find VNF configuration
+
+    #---------------------------------------------------------------------------
+    no_vnf_manager:
+      description: Report issue with accessing the VNF manager.
+      action: std.echo
+      output: |
+       Unable to reach <% $.vnf %> VNF manager
+       Please check\:
+         name of the VNF,
+         VNF credentials,
+         network connectivity and
+         status of the VNF manager.
+      publish:
+          status: undefined
+          errors: Unable to reach VNF manager
+
+    #---------------------------------------------------------------------------
+    completed:
+      description: Report successful execution.
+      action: std.echo
+      output: |
+       Unable to reach <% $.vnf %> VNF manager
+       Please check\:
+         name of the VNF,
+         VNF credentials,
+         network connectivity and
+         status of the VNF manager.
+      publish:
+          status: active
+          errors: ''
+
+    #---------------------------------------------------------------------------
